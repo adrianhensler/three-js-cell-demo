@@ -297,7 +297,7 @@ function cellMat(color, options = {}) {
 
 const membraneMat = cellMat(0x2a6f8f, { transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.0, emissive: 0x103047, side: THREE.DoubleSide });
 const cortexMat   = cellMat(0x45aee0, { transparent: true, opacity: 0.18, emissive: 0x133a50, roughness: 0.4 });
-const cytoplasmMat = cellMat(0x1a3b4f, { emissive: 0x091a24, roughness: 0.9 });
+const cytoplasmMat = cellMat(0x1a3b4f, { emissive: 0x091a24, roughness: 0.9, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.BackSide });
 const nucleusMat = cellMat(0x8f80ff, { roughness: 0.4, emissive: 0x3b2aac });
 const nucleolusMat = cellMat(0xff9fe6, { emissive: 0x7a255d, roughness: 0.3 });
 const mitoMat = cellMat(0xffb25c, { emissive: 0x843b0e, roughness: 0.25 });
@@ -338,6 +338,7 @@ function createCurve(points) {
 // ── Cell Environment ─────────────────────────────────────────────────────────
 const cytoplasm = addSphere(3.6, cytoplasmMat, 0, 0.1, 0);
 cytoplasm.receiveShadow = true;
+cytoplasm.renderOrder = 0;
 
 const membrane = new THREE.Mesh(new THREE.SphereGeometry(3.9, 64, 48), membraneMat);
 membrane.renderOrder = 1;
@@ -373,6 +374,7 @@ const interactiveMeshes = [];
 
 function registerOrganelle(mesh, data) {
   mesh.userData.organelle = data.id;
+  const highlightEmissive = new THREE.Color(data.highlightColor || 0xffffff);
   organelles.push({
     id: data.id,
     name: data.name,
@@ -380,7 +382,8 @@ function registerOrganelle(mesh, data) {
     mesh,
     discovered: false,
     defaultEmissive: mesh.material ? mesh.material.emissive?.clone?.() || new THREE.Color(0x000000) : new THREE.Color(0x000000),
-    highlightEmissive: new THREE.Color(data.highlightColor || 0xffffff)
+    highlightEmissive,
+    selectedEmissive: highlightEmissive.clone().multiplyScalar(2.5)
   });
   interactiveMeshes.push(mesh);
 }
@@ -547,13 +550,14 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
 let hovered = null;
+let selected = null;
 let highlightTween = 0;
 
 function setHover(mesh) {
   if (hovered === mesh) return;
   if (hovered && hovered.material && hovered.userData.organelle) {
     const organelle = organelles.find(o => o.id === hovered.userData.organelle);
-    if (organelle) {
+    if (organelle && hovered !== selected?.mesh) {
       hovered.material.emissive.copy(organelle.defaultEmissive);
       hovered.scale.multiplyScalar(1 / 1.05);
     }
@@ -562,7 +566,7 @@ function setHover(mesh) {
   highlightTween = 0;
   if (hovered && hovered.material && hovered.userData.organelle) {
     const organelle = organelles.find(o => o.id === hovered.userData.organelle);
-    if (organelle) {
+    if (organelle && hovered !== selected?.mesh) {
       hovered.material.emissive.copy(organelle.highlightEmissive);
       hovered.scale.multiplyScalar(1.05);
     }
@@ -595,7 +599,21 @@ function hideInfo() {
   infoPanel.style.display = 'none';
 }
 
+function clearSelection() {
+  if (selected) {
+    const prevOrg = organelles.find(o => o.id === selected.mesh.userData.organelle);
+    if (prevOrg) {
+      selected.mesh.material.emissive.copy(prevOrg.defaultEmissive);
+      if (selected.mesh !== hovered) {
+        selected.mesh.scale.multiplyScalar(1 / 1.05);
+      }
+    }
+    selected = null;
+  }
+}
+
 closeBtn.addEventListener('click', () => {
+  clearSelection();
   hideInfo();
 });
 
@@ -636,7 +654,30 @@ window.addEventListener('click', event => {
     organelle.discovered = true;
     updateStatusUI();
   }
-  showInfo(organelle);
+
+  const previousSelected = selected;
+
+  // Clear old selection
+  if (previousSelected) {
+    const prevOrg = organelles.find(o => o.id === previousSelected.mesh.userData.organelle);
+    if (prevOrg) {
+      previousSelected.mesh.material.emissive.copy(prevOrg.defaultEmissive);
+      if (previousSelected.mesh !== hovered) {
+        previousSelected.mesh.scale.multiplyScalar(1 / 1.05);
+      }
+    }
+  }
+
+  // Set new selection (or deselect if clicking same one)
+  if (previousSelected?.mesh === mesh) {
+    selected = null;
+    hideInfo();
+  } else {
+    selected = { mesh };
+    mesh.material.emissive.copy(organelle.selectedEmissive);
+    if (mesh !== hovered) mesh.scale.multiplyScalar(1.05);
+    showInfo(organelle);
+  }
 });
 
 // ── About Panel ───────────────────────────────────────────────────────────────
