@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Immersive Human Cell</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: radial-gradient(circle at 20% 20%, #0f1f2e, #050b13 65%, #02060c); font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif; color: #d6f2ff; }
+  canvas { display: block; }
+
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  #status-panel {
+    position: absolute; top: 20px; left: 20px;
+    background: rgba(4, 20, 32, 0.78);
+    border: 1px solid rgba(90, 180, 220, 0.35);
+    border-radius: 10px; padding: 16px 20px;
+    color: #bde7ff; font-size: 13px; line-height: 1.8;
+    backdrop-filter: blur(6px);
+    max-width: 220px;
+  }
+  #status-panel h3 {
+    color: #7fd1ff; font-size: 14px; margin-bottom: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .status-row { display: flex; align-items: center; gap: 9px; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(33, 66, 88, 0.8); border: 1px solid rgba(97, 167, 220, 0.4);
+    transition: all 0.35s ease;
+    box-shadow: 0 0 0 rgba(127, 209, 255, 0.6);
+  }
+  .dot.on {
+    background: #8ef0ff;
+    border-color: rgba(130, 240, 255, 0.9);
+    box-shadow: 0 0 6px rgba(130, 240, 255, 0.9), 0 0 14px rgba(60, 180, 255, 0.45);
+  }
+
+  #objective {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(4, 20, 32, 0.78);
+    border: 1px solid rgba(90, 180, 220, 0.35);
+    border-radius: 10px; padding: 14px 18px;
+    color: #bde7ff; font-size: 13px; text-align: right;
+    backdrop-filter: blur(6px);
+  }
+  #obj-count { color: #7fd1ff; font-size: 24px; font-weight: bold; }
+
+  #hover-label {
+    position: absolute; display: none;
+    background: rgba(8, 30, 50, 0.85);
+    border: 1px solid rgba(120, 205, 255, 0.4);
+    border-radius: 5px; padding: 6px 11px;
+    color: #aee7ff; font-size: 12px;
+    pointer-events: none; white-space: nowrap;
+    transform: translate(14px, -50%);
+  }
+
+  #info-panel {
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: rgba(6, 22, 36, 0.93);
+    border: 1px solid rgba(120, 205, 255, 0.45);
+    border-radius: 12px; padding: 22px 26px;
+    color: #c5f1ff; font-size: 14px; line-height: 1.75;
+    max-width: 460px; width: 90%;
+    display: none; pointer-events: auto;
+    backdrop-filter: blur(8px);
+  }
+  #info-panel h4 { color: #7fd1ff; margin-bottom: 10px; font-size: 15px; letter-spacing: 0.04em; }
+  #info-panel p { color: #99d1f2; }
+  #close-btn {
+    margin-top: 16px; padding: 7px 18px;
+    background: rgba(120, 205, 255, 0.12);
+    border: 1px solid rgba(120, 205, 255, 0.4);
+    border-radius: 5px; color: #7fd1ff;
+    cursor: pointer; font-size: 12px;
+    transition: background 0.2s;
+  }
+  #close-btn:hover { background: rgba(120, 205, 255, 0.24); }
+
+  #completion-banner {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(6, 22, 36, 0.95);
+    border: 1px solid rgba(140, 225, 255, 0.6);
+    border-radius: 16px; padding: 34px 46px;
+    color: #c5f1ff; text-align: center;
+    display: none; opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+  }
+  #completion-banner h2 { font-size: 22px; margin-bottom: 10px; letter-spacing: 0.06em; color: #7fd1ff; }
+  #completion-banner p { color: #9fdfff; font-size: 14px; }
+
+  #hint {
+    position: absolute; bottom: 20px; right: 20px;
+    color: rgba(140, 210, 255, 0.55); font-size: 11px;
+    text-align: right; line-height: 1.7;
+  }
+
+  #about-btn {
+    position: absolute; bottom: 20px; left: 20px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(6, 22, 36, 0.75);
+    border: 1px solid rgba(120, 205, 255, 0.35);
+    color: #92dcff; font-size: 16px; line-height: 32px;
+    text-align: center; cursor: pointer;
+    pointer-events: auto; backdrop-filter: blur(6px);
+    transition: background 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+  #about-btn:hover {
+    background: rgba(120, 205, 255, 0.18);
+    border-color: rgba(120, 205, 255, 0.55);
+  }
+
+  #about-panel {
+    position: absolute; bottom: 64px; left: 20px;
+    background: rgba(6, 22, 36, 0.94);
+    border: 1px solid rgba(120, 205, 255, 0.45);
+    border-radius: 12px; padding: 22px 24px;
+    color: #bde7ff; font-size: 13px; line-height: 1.78;
+    max-width: 360px; width: 90%;
+    pointer-events: auto; backdrop-filter: blur(8px);
+    display: none; opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  #about-panel.visible { display: block; }
+  #about-panel.fade-in { opacity: 1; }
+  #about-panel h4 {
+    color: #7fd1ff; font-size: 14px; margin-bottom: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  #about-panel p { margin-bottom: 10px; color: #96cdef; }
+  #about-panel a { color: #7fd1ff; text-decoration: none; }
+  #about-panel a:hover { text-decoration: underline; }
+  .about-tag {
+    display: inline-block; margin: 4px 4px 0 0;
+    padding: 2px 8px; border-radius: 4px;
+    background: rgba(120, 205, 255, 0.12);
+    border: 1px solid rgba(120, 205, 255, 0.35);
+    color: #7fd1ff; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="status-panel">
+    <h3>Organelle Log</h3>
+    <div class="status-row"><div class="dot" id="dot-nucleus"></div><span>Nucleus &amp; Nucleolus</span></div>
+    <div class="status-row"><div class="dot" id="dot-mito"></div><span>Mitochondria Cluster</span></div>
+    <div class="status-row"><div class="dot" id="dot-er"></div><span>Endoplasmic Reticulum</span></div>
+    <div class="status-row"><div class="dot" id="dot-golgi"></div><span>Golgi Apparatus</span></div>
+    <div class="status-row"><div class="dot" id="dot-lysosome"></div><span>Lysosome Network</span></div>
+    <div class="status-row"><div class="dot" id="dot-centrosome"></div><span>Centrosome</span></div>
+  </div>
+
+  <div id="objective">
+    <div id="obj-count">0/6</div>
+    <div>structures documented</div>
+  </div>
+
+  <div id="hover-label"></div>
+
+  <div id="info-panel">
+    <h4>Organelle</h4>
+    <p>Detailed description will appear here when you document a structure.</p>
+    <button id="close-btn">Close</button>
+  </div>
+
+  <div id="completion-banner">
+    <h2>Cell Mapped</h2>
+    <p>You have documented all major structures of this human cell.<br>Use the controls to keep exploring the cytoplasmic landscape.</p>
+  </div>
+
+  <div id="hint">
+    WASD to drift · Drag to look · Scroll to zoom<br>
+    Hover to identify · Click to document</div>
+
+  <div id="about-btn" title="About this demo">?</div>
+
+  <div id="about-panel">
+    <h4>About this cell</h4>
+    <p>An interactive tour through a stylised human cell. Everything is generated in-code using Three.js, no external models.</p>
+    <p>Document six essential organelles to complete the exploration. Each uses subtle animation cues inspired by microscopy.</p>
+
+    <p style="margin-top:14px; margin-bottom:6px; color:#6aa0c8; font-size:12px; text-transform:uppercase; letter-spacing:0.06em;">The prompt</p>
+    <p style="font-size:12px; color:#83c3ee; font-style:italic; line-height:1.7; border-left: 2px solid rgba(120,205,255,0.35); padding-left:10px;">
+      Recreate the cozy-room demo vibe, but for a human cell. Single-file Three.js, no assets. Include hover labels, click interactions, organelle status tracking, movement, and atmospheric lighting.
+    </p>
+
+    <p style="margin-top:14px; color:#6aa0c8; font-size:12px;">Built with</p>
+    <div style="margin-bottom:12px;">
+      <span class="about-tag">Three.js r128</span>
+      <span class="about-tag">WebGL</span>
+      <span class="about-tag">OrbitControls</span>
+      <span class="about-tag">Shader-like materials</span>
+      <span class="about-tag">ACESFilmic tonemapping</span>
+    </div>
+    <p style="color:#6aa0c8; font-size:12px;">Designed &amp; generated by Claude-inspired OpenCode.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+// ── Scene & Camera ────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030910);
+scene.fog = new THREE.FogExp2(0x071120, 0.04);
+
+const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.08, 60);
+camera.position.set(0, 2.4, 6.5);
+camera.lookAt(0, 0.5, 0);
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.5, 0);
+controls.minPolarAngle = Math.PI * 0.08;
+controls.maxPolarAngle = Math.PI * 0.92;
+controls.enablePan = false;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.55;
+controls.zoomSpeed = 0.65;
+controls.minDistance = 2.4;
+controls.maxDistance = 10;
+controls.update();
+
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+const _fwd   = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _move  = new THREE.Vector3();
+const _up    = new THREE.Vector3(0, 1, 0);
+const MOVE_SPEED = 0.04;
+const BOUNDS = { minX: -4.5, maxX: 4.5, minY: -1.5, maxY: 4.5, minZ: -4.5, maxZ: 4.5 };
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+const ambient = new THREE.HemisphereLight(0x3e78a0, 0x05111f, 0.65);
+scene.add(ambient);
+
+const coreLight = new THREE.PointLight(0x76caff, 1.2, 18, 2.0);
+coreLight.position.set(0.2, 0.6, -0.1);
+coreLight.castShadow = true;
+coreLight.shadow.mapSize.set(1024, 1024);
+scene.add(coreLight);
+
+const glowLight = new THREE.PointLight(0xff9ed6, 0.8, 16, 2.5);
+glowLight.position.set(-1.2, 0.3, 1.6);
+scene.add(glowLight);
+
+const rimLight = new THREE.DirectionalLight(0x85d7ff, 0.45);
+rimLight.position.set(3, 4, 5);
+rimLight.castShadow = true;
+rimLight.shadow.mapSize.set(1024, 1024);
+rimLight.shadow.camera.near = 1;
+rimLight.shadow.camera.far = 20;
+rimLight.shadow.camera.left = -6;
+rimLight.shadow.camera.right = 6;
+rimLight.shadow.camera.top = 6;
+rimLight.shadow.camera.bottom = -6;
+scene.add(rimLight);
+
+// ── Materials ─────────────────────────────────────────────────────────────────
+function cellMat(color, options = {}) {
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: options.roughness !== undefined ? options.roughness : 0.55,
+    metalness: options.metalness !== undefined ? options.metalness : 0.05,
+    emissive: new THREE.Color(options.emissive || 0x000000),
+    transparent: !!options.transparent,
+    opacity: options.opacity !== undefined ? options.opacity : 1,
+    side: options.side || THREE.FrontSide
+  });
+  if (options.depthWrite !== undefined) mat.depthWrite = options.depthWrite;
+  if (options.depthTest !== undefined) mat.depthTest = options.depthTest;
+  return mat;
+}
+
+const membraneMat = cellMat(0x2a6f8f, { transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.0, emissive: 0x103047, side: THREE.DoubleSide });
+const cortexMat   = cellMat(0x45aee0, { transparent: true, opacity: 0.18, emissive: 0x133a50, roughness: 0.4 });
+const cytoplasmMat = cellMat(0x1a3b4f, { emissive: 0x091a24, roughness: 0.9 });
+const nucleusMat = cellMat(0x8f80ff, { roughness: 0.4, emissive: 0x3b2aac });
+const nucleolusMat = cellMat(0xff9fe6, { emissive: 0x7a255d, roughness: 0.3 });
+const mitoMat = cellMat(0xffb25c, { emissive: 0x843b0e, roughness: 0.25 });
+const mitoInnerMat = cellMat(0xffdd9b, { emissive: 0xc77a1d, roughness: 0.2 });
+const erMat = cellMat(0x5fe0ff, { emissive: 0x0f5b7c, roughness: 0.35 });
+const golgiMat = cellMat(0xff7f9d, { emissive: 0x862040, roughness: 0.45 });
+const lysosomeMat = cellMat(0x7de84f, { emissive: 0x1f5b16, roughness: 0.3 });
+const centrosomeMat = cellMat(0x9cf0ff, { emissive: 0x2a7ea0, roughness: 0.2 });
+const microtubuleMat = new THREE.LineBasicMaterial({ color: 0x3fb1ff, transparent: true, opacity: 0.35 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function addSphere(radius, material, x = 0, y = 0, z = 0) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 32), material);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function addEllipsoid(rx, ry, rz, material, x = 0, y = 0, z = 0) {
+  const geom = new THREE.SphereGeometry(1, 36, 24);
+  const mesh = new THREE.Mesh(geom, material);
+  mesh.scale.set(rx, ry, rz);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function createCurve(points) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geometry = new THREE.TubeBufferGeometry(curve, 64, 0.08, 12, false);
+  return geometry;
+}
+
+// ── Cell Environment ─────────────────────────────────────────────────────────
+const cytoplasm = addSphere(3.6, cytoplasmMat, 0, 0.1, 0);
+cytoplasm.receiveShadow = true;
+
+const membrane = new THREE.Mesh(new THREE.SphereGeometry(3.9, 64, 48), membraneMat);
+membrane.renderOrder = 1;
+scene.add(membrane);
+
+const cortex = new THREE.Mesh(new THREE.SphereGeometry(3.9, 64, 48), cortexMat);
+cortex.scale.set(1.0, 1.0, 1.0);
+cortex.renderOrder = 2;
+scene.add(cortex);
+
+// Inner floating particles (cytosol)
+const particleCount = 420;
+const positions = new Float32Array(particleCount * 3);
+const speeds = new Float32Array(particleCount);
+for (let i = 0; i < particleCount; i++) {
+  const r = Math.random() * 3.2;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  positions[i * 3 + 1] = r * Math.cos(phi);
+  positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  speeds[i] = 0.15 + Math.random() * 0.35;
+}
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+const particleMat = new THREE.PointsMaterial({ color: 0x8fd5ff, size: 0.07, transparent: true, opacity: 0.55, depthWrite: false });
+const cytosolParticles = new THREE.Points(particleGeo, particleMat);
+scene.add(cytosolParticles);
+
+// ── Organelle Groups ─────────────────────────────────────────────────────────
+const organelles = [];
+const interactiveMeshes = [];
+
+function registerOrganelle(mesh, data) {
+  mesh.userData.organelle = data.id;
+  organelles.push({
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    mesh,
+    discovered: false,
+    defaultEmissive: mesh.material ? mesh.material.emissive?.clone?.() || new THREE.Color(0x000000) : new THREE.Color(0x000000),
+    highlightEmissive: new THREE.Color(data.highlightColor || 0xffffff)
+  });
+  interactiveMeshes.push(mesh);
+}
+
+// Nucleus & nucleolus
+const nucleusGroup = new THREE.Group();
+nucleusGroup.position.set(-0.5, 0.4, -0.4);
+scene.add(nucleusGroup);
+
+const nucleus = new THREE.Mesh(new THREE.SphereGeometry(1.2, 64, 48), nucleusMat);
+const nucleusHalo = new THREE.Mesh(new THREE.SphereGeometry(1.28, 32, 24), cellMat(0x8f80ff, { transparent: true, opacity: 0.18, emissive: 0x4332b0, roughness: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+nucleusHalo.renderOrder = 3;
+nucleusGroup.add(nucleus);
+nucleusGroup.add(nucleusHalo);
+
+const nucleolus = new THREE.Mesh(new THREE.SphereGeometry(0.45, 48, 32), nucleolusMat);
+nucleolus.position.set(0.2, 0.15, -0.15);
+nucleusGroup.add(nucleolus);
+
+registerOrganelle(nucleus, {
+  id: 'nucleus',
+  name: 'Nucleus & Nucleolus',
+  description: 'A double-membraned organelle housing the cell\'s DNA. The nucleolus inside assembles ribosomal subunits that will be shipped to the cytoplasm.',
+  highlightColor: 0xcfc1ff
+});
+
+// Mitochondria cluster
+const mitoGroup = new THREE.Group();
+mitoGroup.position.set(1.4, -0.2, 0.8);
+scene.add(mitoGroup);
+
+for (let i = 0; i < 6; i++) {
+  const mitoBody = new THREE.Mesh(new THREE.SphereGeometry(0.35, 28, 18), mitoMat);
+  mitoBody.scale.set(1.7, 0.8, 0.8);
+  mitoBody.position.set((Math.random() - 0.5) * 1.4, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 1.1);
+  mitoBody.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+
+  const inner = new THREE.Mesh(new THREE.TorusKnotBufferGeometry(0.18, 0.05, 64, 12), mitoInnerMat);
+  inner.scale.set(0.7, 0.7, 0.7);
+  inner.position.set(0, 0, 0);
+  mitoBody.add(inner);
+
+  mitoGroup.add(mitoBody);
+  registerOrganelle(mitoBody, {
+    id: 'mito',
+    name: 'Mitochondria Cluster',
+    description: 'Powerhouses rich in folded inner membranes (cristae) where ATP is produced. Their own DNA hints at an ancient symbiosis.',
+    highlightColor: 0xfff0b0
+  });
+}
+
+// Endoplasmic reticulum
+const erGroup = new THREE.Group();
+erGroup.position.set(0.8, 0.55, -1.1);
+scene.add(erGroup);
+
+const erLayers = 5;
+for (let i = 0; i < erLayers; i++) {
+  const curve = createCurve([
+    new THREE.Vector3(-1.0 + i * 0.02, 0.15 * Math.sin(i * 0.3), -0.6),
+    new THREE.Vector3(-0.2 + Math.sin(i) * 0.2, 0.05 * Math.cos(i), 0),
+    new THREE.Vector3(0.8 + i * 0.1, 0.12 * Math.sin(i * 0.5), 0.6),
+    new THREE.Vector3(1.3, 0.05 * Math.cos(i * 1.1), 0.9)
+  ]);
+  const erSegment = new THREE.Mesh(curve, erMat);
+  erSegment.castShadow = true;
+  erSegment.receiveShadow = true;
+  erGroup.add(erSegment);
+}
+
+registerOrganelle(erGroup.children[2], {
+  id: 'er',
+  name: 'Endoplasmic Reticulum',
+  description: 'A labyrinth of folded membranes where proteins (rough ER) and lipids (smooth ER) are synthesised, then ferried toward Golgi stacks.',
+  highlightColor: 0xaef3ff
+});
+
+// Golgi apparatus
+const golgiGroup = new THREE.Group();
+golgiGroup.position.set(-1.2, -0.15, 1.2);
+scene.add(golgiGroup);
+
+for (let i = 0; i < 6; i++) {
+  const torus = new THREE.Mesh(new THREE.TorusBufferGeometry(0.55 - i * 0.05, 0.12, 28, 64, Math.PI + Math.sin(i * 0.4) * 0.6), golgiMat);
+  torus.rotation.set(Math.PI / 2, Math.PI / 5 + i * 0.05, 0);
+  torus.position.set(0, i * 0.11, 0);
+  golgiGroup.add(torus);
+}
+
+registerOrganelle(golgiGroup.children[0], {
+  id: 'golgi',
+  name: 'Golgi Apparatus',
+  description: 'Stacked cisternae refine, package, and label proteins and lipids for delivery. Vesicles bud from its edges toward their destinations.',
+  highlightColor: 0xffb5c9
+});
+
+// Lysosome cluster
+const lysosomeGroup = new THREE.Group();
+lysosomeGroup.position.set(-0.3, -0.4, -1.6);
+scene.add(lysosomeGroup);
+
+for (let i = 0; i < 5; i++) {
+  const lys = new THREE.Mesh(new THREE.SphereGeometry(0.32 + Math.random() * 0.08, 26, 18), lysosomeMat);
+  lys.position.set((Math.random() - 0.5) * 1.1, (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 1.0);
+  lysosomeGroup.add(lys);
+  registerOrganelle(lys, {
+    id: 'lysosome',
+    name: 'Lysosome Network',
+    description: 'Acidic vesicles rich in digestive enzymes. They recycle cellular debris and fuse with vesicles carrying damaged components.',
+    highlightColor: 0xb3ffa1
+  });
+}
+
+// Centrosome
+const centrosomeGroup = new THREE.Group();
+centrosomeGroup.position.set(0.6, 1.1, 1.3);
+scene.add(centrosomeGroup);
+
+for (let i = 0; i < 2; i++) {
+  const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.7, 24), centrosomeMat);
+  cylinder.rotation.z = Math.PI / 2;
+  cylinder.rotation.y = i === 0 ? Math.PI / 5 : -Math.PI / 5;
+  cylinder.position.set(0, 0, (i - 0.5) * 0.25);
+  centrosomeGroup.add(cylinder);
+}
+
+const spokes = new THREE.Group();
+centrosomeGroup.add(spokes);
+for (let i = 0; i < 16; i++) {
+  const angle = (i / 16) * Math.PI * 2;
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(Math.cos(angle) * 1.6, Math.random() * 0.3 - 0.15, Math.sin(angle) * 1.6)
+  ]);
+  const line = new THREE.Line(geo, microtubuleMat);
+  spokes.add(line);
+}
+
+registerOrganelle(centrosomeGroup.children[0], {
+  id: 'centrosome',
+  name: 'Centrosome',
+  description: 'A pair of perpendicular centrioles organising microtubules. During cell division it seeds the mitotic spindle that separates chromosomes.',
+  highlightColor: 0xc5ffff
+});
+
+// ── Interaction Logic ─────────────────────────────────────────────────────────
+const hoverLabel = document.getElementById('hover-label');
+const infoPanel = document.getElementById('info-panel');
+const infoTitle = infoPanel.querySelector('h4');
+const infoCopy = infoPanel.querySelector('p');
+const closeBtn = document.getElementById('close-btn');
+const statusDots = {
+  nucleus: document.getElementById('dot-nucleus'),
+  mito: document.getElementById('dot-mito'),
+  er: document.getElementById('dot-er'),
+  golgi: document.getElementById('dot-golgi'),
+  lysosome: document.getElementById('dot-lysosome'),
+  centrosome: document.getElementById('dot-centrosome')
+};
+const objectiveCount = document.getElementById('obj-count');
+const completionBanner = document.getElementById('completion-banner');
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+let hovered = null;
+let highlightTween = 0;
+
+function setHover(mesh) {
+  if (hovered === mesh) return;
+  if (hovered && hovered.material && hovered.userData.organelle) {
+    const organelle = organelles.find(o => o.id === hovered.userData.organelle);
+    if (organelle) {
+      hovered.material.emissive.copy(organelle.defaultEmissive);
+      hovered.scale.multiplyScalar(1 / 1.05);
+    }
+  }
+  hovered = mesh;
+  highlightTween = 0;
+  if (hovered && hovered.material && hovered.userData.organelle) {
+    const organelle = organelles.find(o => o.id === hovered.userData.organelle);
+    if (organelle) {
+      hovered.material.emissive.copy(organelle.highlightEmissive);
+      hovered.scale.multiplyScalar(1.05);
+    }
+  }
+}
+
+function updateStatusUI() {
+  const documented = organelles.reduce((sum, org) => sum + (org.discovered ? 1 : 0), 0);
+  objectiveCount.textContent = `${documented}/${Object.keys(statusDots).length}`;
+  organelles.forEach(org => {
+    const dot = statusDots[org.id];
+    if (!dot) return;
+    if (org.discovered) {
+      dot.classList.add('on');
+    }
+  });
+  if (documented === Object.keys(statusDots).length) {
+    completionBanner.style.display = 'block';
+    requestAnimationFrame(() => { completionBanner.style.opacity = '1'; });
+  }
+}
+
+function showInfo(organelle) {
+  infoTitle.textContent = organelle.name;
+  infoCopy.textContent = organelle.description;
+  infoPanel.style.display = 'block';
+}
+
+function hideInfo() {
+  infoPanel.style.display = 'none';
+}
+
+closeBtn.addEventListener('click', () => {
+  hideInfo();
+});
+
+window.addEventListener('pointermove', event => {
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(interactiveMeshes, false);
+
+  if (intersects.length) {
+    const mesh = intersects[0].object;
+    setHover(mesh);
+    const organelle = organelles.find(o => o.id === mesh.userData.organelle);
+    hoverLabel.textContent = organelle ? organelle.name : 'Structure';
+    hoverLabel.style.display = 'block';
+    hoverLabel.style.left = `${event.clientX}px`;
+    hoverLabel.style.top = `${event.clientY}px`;
+  } else {
+    setHover(null);
+    hoverLabel.style.display = 'none';
+  }
+});
+
+window.addEventListener('click', event => {
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(interactiveMeshes, false);
+  if (!intersects.length) return;
+
+  const mesh = intersects[0].object;
+  const organelle = organelles.find(o => o.id === mesh.userData.organelle);
+  if (!organelle) return;
+
+  if (!organelle.discovered) {
+    organelle.discovered = true;
+    updateStatusUI();
+  }
+  showInfo(organelle);
+});
+
+// ── About Panel ───────────────────────────────────────────────────────────────
+const aboutBtn = document.getElementById('about-btn');
+const aboutPanel = document.getElementById('about-panel');
+let aboutVisible = false;
+
+aboutBtn.addEventListener('click', () => {
+  aboutVisible = !aboutVisible;
+  if (aboutVisible) {
+    aboutPanel.classList.add('visible');
+    requestAnimationFrame(() => aboutPanel.classList.add('fade-in'));
+  } else {
+    aboutPanel.classList.remove('fade-in');
+    setTimeout(() => aboutPanel.classList.remove('visible'), 250);
+  }
+});
+
+// ── Animation helpers ────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animateOrganelles(time) {
+  // nucleus gentle rotation & breathing
+  nucleusGroup.rotation.y += 0.0015;
+  const scale = 1 + Math.sin(time * 0.6) * 0.015;
+  nucleus.scale.set(scale, scale, scale);
+  nucleusHalo.material.opacity = 0.15 + Math.cos(time * 0.7) * 0.07;
+
+  // nucleolus orbit
+  const angle = time * 0.9;
+  nucleolus.position.x = Math.cos(angle) * 0.3;
+  nucleolus.position.z = Math.sin(angle) * 0.3;
+  nucleolus.position.y = 0.15 + Math.sin(angle * 1.7) * 0.1;
+
+  // mitochondria wobble
+  mitoGroup.children.forEach((mito, idx) => {
+    mito.rotation.x += 0.002 + idx * 0.0003;
+    mito.rotation.y += 0.003;
+    mito.position.y += Math.sin(time * (0.8 + idx * 0.1)) * 0.0025;
+  });
+
+  // ER undulation
+  erGroup.children.forEach((seg, idx) => {
+    seg.rotation.z = Math.sin(time * 0.5 + idx) * 0.18;
+  });
+
+  // Golgi ripple
+  golgiGroup.children.forEach((arc, idx) => {
+    arc.rotation.y = Math.PI / 5 + Math.sin(time * 0.6 + idx * 0.4) * 0.25;
+  });
+
+  // Lysosome drift
+  lysosomeGroup.children.forEach((lys, idx) => {
+    lys.position.x += Math.sin(time * 0.5 + idx) * 0.0015;
+    lys.position.y += Math.cos(time * 0.6 + idx) * 0.0015;
+  });
+
+  // Centrosome rotation
+  centrosomeGroup.rotation.y = Math.sin(time * 0.4) * 0.25;
+  spokes.children.forEach((line, idx) => {
+    const attr = line.geometry.attributes.position;
+    const angle = (idx / spokes.children.length) * Math.PI * 2;
+    const radius = 1.2 + Math.sin(time * 0.7 + idx) * 0.3;
+    attr.setXYZ(1, Math.cos(angle) * radius, Math.sin(time * 0.9 + idx) * 0.28, Math.sin(angle) * radius);
+    attr.needsUpdate = true;
+  });
+
+  // Cytosol particles drift
+  const pos = cytosolParticles.geometry.attributes.position;
+  for (let i = 0; i < particleCount; i++) {
+    const ix = i * 3;
+    pos.array[ix]     *= 1 + Math.sin(time * speeds[i] * 0.12) * 0.0006;
+    pos.array[ix + 1] *= 1 + Math.cos(time * speeds[i] * 0.1) * 0.0006;
+    pos.array[ix + 2] *= 1 + Math.sin(time * speeds[i] * 0.14) * 0.0006;
+  }
+  pos.needsUpdate = true;
+}
+
+function updateCameraMovement(delta) {
+  const moveSpeed = MOVE_SPEED * (keys['ShiftLeft'] || keys['ShiftRight'] ? 2.0 : 1.0);
+
+  _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  _fwd.y = 0;
+  _fwd.normalize();
+
+  _right.copy(_fwd).cross(_up);
+
+  _move.set(0, 0, 0);
+  if (keys['KeyW']) _move.add(_fwd);
+  if (keys['KeyS']) _move.addScaledVector(_fwd, -1);
+  if (keys['KeyA']) _move.addScaledVector(_right, -1);
+  if (keys['KeyD']) _move.add(_right);
+  if (keys['KeyQ']) _move.y -= 1;
+  if (keys['KeyE']) _move.y += 1;
+
+  if (_move.lengthSq() > 0) {
+    _move.normalize().multiplyScalar(moveSpeed / delta);
+    camera.position.add(_move);
+    controls.target.add(_move);
+
+    camera.position.x = THREE.MathUtils.clamp(camera.position.x, BOUNDS.minX, BOUNDS.maxX);
+    camera.position.y = THREE.MathUtils.clamp(camera.position.y, BOUNDS.minY, BOUNDS.maxY);
+    camera.position.z = THREE.MathUtils.clamp(camera.position.z, BOUNDS.minZ, BOUNDS.maxZ);
+
+    controls.target.x = THREE.MathUtils.clamp(controls.target.x, BOUNDS.minX * 0.3, BOUNDS.maxX * 0.3);
+    controls.target.y = THREE.MathUtils.clamp(controls.target.y, BOUNDS.minY * 0.5, BOUNDS.maxY * 0.5);
+    controls.target.z = THREE.MathUtils.clamp(controls.target.z, BOUNDS.minZ * 0.3, BOUNDS.maxZ * 0.3);
+  }
+}
+
+// ── Render Loop ───────────────────────────────────────────────────────────────
+function tick() {
+  const delta = Math.min(clock.getDelta(), 0.033);
+  const elapsed = clock.elapsedTime;
+
+  controls.update();
+  updateCameraMovement(delta || 0.016);
+  animateOrganelles(elapsed);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+tick();
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Initial UI State ─────────────────────────────────────────────────────────
+updateStatusUI();
+
+</script>
+</body>
+</html>
